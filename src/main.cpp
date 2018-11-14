@@ -10,8 +10,8 @@ const int SHUTTER_PIN_RELAY_DOWN = 12;
 const int SHUTTER_PIN_RELAY_UP = 5;
 const int BUTTON_PIN_CASE = 10;
 const int LED_PIN_STATUS = 13;
-const int SHUTTER_UPCOURSETIME_SEC = 60000;
-const int SHUTTER_DOWNCOURSETIME_SEC = 60000;
+const int SHUTTER_UPCOURSETIME_SEC = 120000;
+const int SHUTTER_DOWNCOURSETIME_SEC = 120000;
 const float SHUTTER_CALIBRATION_RATIO = 0.1;
 
 EnemDoubleButton button = EnemDoubleButton(SHUTTER_PIN_BUTTON_UP, SHUTTER_PIN_BUTTON_DOWN, 60, 100, 1000);
@@ -46,13 +46,31 @@ bool voletLevelHandler(const HomieRange& range, const String& value)
   return true;
 }
 
+bool voletUpCommandHandler(const HomieRange& range, const String& value)
+{
+  shutter.setLevel(0);
+  return true;
+}
+
+bool voletDownCommandHandler(const HomieRange& range, const String& value)
+{
+  shutter.setLevel(100);
+  return true;
+}
+
+bool voletStopCommandHandler(const HomieRange& range, const String& value)
+{
+  shutter.stop();
+  return true;
+}
+
 bool voletupCourseTimeHandler(const HomieRange& range, const String& value)
 {
   unsigned long upCourseTime;
   if(!positiveIntTryParse(value, upCourseTime)) { return false; }
 
   //Garde fou : plus d'une minute = foutage de gueule, pas moins de 5 secondes, = foutage de gueule aussi !
-  if(upCourseTime > 60000) { return false; }
+  if(upCourseTime > SHUTTER_UPCOURSETIME_SEC) { return false; }
   if(upCourseTime < 5000) { return false; }
 
   unsigned long downCourseTime = shutter.getDownCourseTime();
@@ -73,7 +91,7 @@ bool voletdownCourseTimeHandler(const HomieRange& range, const String& value)
   if(!positiveIntTryParse(value, downCourseTime)) { return false; }
 
   //Garde fou : plus d'une minute = foutage de gueule, pas moins de 5 secondes, = foutage de gueule aussi !
-  if(downCourseTime > 60000) { return false; }
+  if(downCourseTime > SHUTTER_DOWNCOURSETIME_SEC) { return false; }
   if(downCourseTime < 5000) { return false; }
 
   unsigned long upCourseTime = shutter.getUpCourseTime();
@@ -170,17 +188,17 @@ void stopPressed(EnemDoubleButton* button)
 
 void upDoublePressed(EnemDoubleButton* button)
 {
-  voletNode.setProperty("externalUpCommand").setRetained(false).send("true");
+  voletNode.setProperty("upCommand").setRetained(false).send("true");
 }
 
 void downDoublePressed(EnemDoubleButton* button)
 {
-  voletNode.setProperty("externalDownCommand").setRetained(false).send("true");
+  voletNode.setProperty("downCommand").setRetained(false).send("true");
 }
 
 void stopDoublePressed(EnemDoubleButton* button)
 {
-  voletNode.setProperty("externalStopCommand").setRetained(false).send("true");
+  voletNode.setProperty("stopCommand").setRetained(false).send("true");
 }
 
 void setup()
@@ -198,9 +216,9 @@ void setup()
   voletNode.advertise("level").settable(voletLevelHandler);
   voletNode.advertise("upCourseTime").settable(voletupCourseTimeHandler);
   voletNode.advertise("downCourseTime").settable(voletdownCourseTimeHandler);
-  voletNode.advertise("externalUpCommand");
-  voletNode.advertise("externalDownCommand");
-  voletNode.advertise("externalStopCommand");
+  voletNode.advertise("upCommand").settable(voletUpCommandHandler);
+  voletNode.advertise("downCommand").settable(voletDownCommandHandler);
+  voletNode.advertise("stopCommand").settable(voletStopCommandHandler);
 
   char storedShuttersState[shutter.getStateLength()];
   readInEeprom(storedShuttersState, shutter.getStateLength());
