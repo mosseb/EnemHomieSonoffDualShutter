@@ -8,9 +8,9 @@ typedef void (*HandlerFunction)(::EnemDoubleButton*);
 class EnemDoubleButton
 {
 private:
-  int delayBounce;
-  int delayBoth;
-  int delayDouble;
+  unsigned int delayBounce;
+  unsigned int delayBoth;
+  unsigned int delayDouble;
 
   int pinUp;
   Bounce upDebouncer;

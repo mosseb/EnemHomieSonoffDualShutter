@@ -21,7 +21,7 @@ byte publishingLevel = ShuttersInternal::LEVEL_NONE;
 unsigned long publishingUpCourseTime = 0;
 unsigned long publishingDownCourseTime = 0;
 
-HomieNode voletNode("shutters", "shutters");
+HomieNode voletNode("shutters", "shutters", "shutters");
 
 bool positiveIntTryParse(const String& value, unsigned long& out)
 {
