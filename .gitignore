@@ -2,8 +2,7 @@
 .piolibdeps
 .clang_complete
 .gcc-flags.json
-data/homie/config.json
+/data/homie/config.json
 gitprivate
-/data
 .pio
 .vscode

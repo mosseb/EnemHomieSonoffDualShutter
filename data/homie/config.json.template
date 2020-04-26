@@ -1,5 +1,6 @@
 {
   "name": "module-friendly-name",
+  "device_id": "module-friendly-name",
   "wifi": {
     "ssid": "WIFI_SSID",
     "password": "WIFI_PASS"
