@@ -285,7 +285,7 @@ void setup()
   rebootCount++;
   writeRebootCount();
 
-  Homie_setFirmware("sonoffdual-shutters", "1.0.0");
+  Homie_setFirmware("EnemHomieSonoffDualShutter", "1.1.0");
   Homie.setLoopFunction(loopHandler);
   Homie.setLedPin(LED_PIN_STATUS, LOW).setResetTrigger(BUTTON_PIN_CASE, LOW, 5000);
   Homie.onEvent(onHomieEvent);
