@@ -18,6 +18,11 @@ uint8_t rebootCount = 0;
 unsigned long disconnectedTime = 0;
 unsigned long const maxDisconnectedTime = 20000;
 
+unsigned long buttonLockStartTime = 0;
+unsigned int buttonLockDuration = 0;
+unsigned long publishingButtonLockRemaining = ULONG_MAX;
+unsigned long lastPublishButtonLock = 0;
+
 EnemDoubleButton button = EnemDoubleButton(SHUTTER_PIN_BUTTON_UP, SHUTTER_PIN_BUTTON_DOWN, 60, 100, 1000);
 Shutters shutter;
 
@@ -65,6 +70,29 @@ bool voletDownCommandHandler(const HomieRange& range, const String& value)
 bool voletStopCommandHandler(const HomieRange& range, const String& value)
 {
   shutter.stop();
+  return true;
+}
+
+bool buttonLockCommandHandler(const HomieRange& range, const String& value)
+{
+  unsigned long duration;
+  if(!positiveIntTryParse(value, duration)) { return false; }
+
+  // Entre 10 secondes et 1h
+  if (duration > 60*60 || duration < 10) return false;
+
+  lastPublishButtonLock = 0;
+  
+  if(duration == 0)
+  {
+    buttonLockStartTime = 0;
+  }
+  else
+  {
+    buttonLockStartTime = millis();
+    buttonLockDuration = duration * 1000;
+  }
+
   return true;
 }
 
@@ -184,36 +212,54 @@ void loopHandler() {
     voletNode.setProperty("downCourseTime").send(String(publishingDownCourseTime));
     publishingDownCourseTime = 0;
   }
+
+  if(publishingButtonLockRemaining != ULONG_MAX)
+  {
+    voletNode.setProperty("buttonLock").send(String(publishingButtonLockRemaining / 1000));
+    publishingButtonLockRemaining = ULONG_MAX;
+  }
 }
 
 void upPressed(EnemDoubleButton* button)
 {
+  if(buttonLockStartTime != 0) { return; }
   shutter.setLevel(0);
+  voletNode.setProperty("log").send("upPressed");
 }
 
 void downPressed(EnemDoubleButton* button)
 {
+  if(buttonLockStartTime != 0) { return; }
   shutter.setLevel(100);
+  voletNode.setProperty("log").send("downPressed");
 }
 
 void stopPressed(EnemDoubleButton* button)
 {
+  if(buttonLockStartTime != 0) { return; }
   shutter.stop();
+  voletNode.setProperty("log").send("stopPressed");
 }
 
 void upDoublePressed(EnemDoubleButton* button)
 {
+  if(buttonLockStartTime != 0) { return; }
   voletNode.setProperty("upCommand").setRetained(false).send("true");
+  voletNode.setProperty("log").send("upDoublePressed");
 }
 
 void downDoublePressed(EnemDoubleButton* button)
 {
+  if(buttonLockStartTime != 0) { return; }
   voletNode.setProperty("downCommand").setRetained(false).send("true");
+  voletNode.setProperty("log").send("downDoublePressed");
 }
 
 void stopDoublePressed(EnemDoubleButton* button)
 {
+  if(buttonLockStartTime != 0) { return; }
   voletNode.setProperty("stopCommand").setRetained(false).send("true");
+  voletNode.setProperty("log").send("stopDoublePressed");
 }
 
 void onHomieEvent(const HomieEvent& event) {
@@ -251,6 +297,7 @@ void setup()
   voletNode.advertise("upCommand").settable(voletUpCommandHandler);
   voletNode.advertise("downCommand").settable(voletDownCommandHandler);
   voletNode.advertise("stopCommand").settable(voletStopCommandHandler);
+  voletNode.advertise("buttonLock").settable(buttonLockCommandHandler);
 
   char storedShuttersState[shutter.getStateLength()];
   readInEeprom(storedShuttersState, shutter.getStateLength());
@@ -304,6 +351,23 @@ void HomieIndependentLoop()
 {
   button.loop();
   shutter.loop();
+
+  if(buttonLockStartTime != 0)
+  {
+    if(millis() - lastPublishButtonLock >= 10000)
+    {
+      publishingButtonLockRemaining = buttonLockDuration - (millis() - buttonLockStartTime);
+      if(publishingButtonLockRemaining < 0) { publishingButtonLockRemaining = 0; }
+      lastPublishButtonLock = millis();
+    }
+
+    if(millis() - buttonLockStartTime >= buttonLockDuration)
+    {
+      buttonLockStartTime = 0;
+      buttonLockDuration = 0;
+      publishingButtonLockRemaining = 0;
+    }
+  }
 }
 
 void loop() {

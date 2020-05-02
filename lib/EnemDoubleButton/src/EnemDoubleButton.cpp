@@ -71,10 +71,11 @@ void EnemDoubleButton::loop()
   //Dans les autre cas, on continue simplement de mémoriser Since
 
   //Reset du timer rendant possible le double
-  if(millis() - lastActionSince >= delayDouble)
+  if(lastActionSince != 0 && millis() - lastActionSince >= delayDouble)
   {
     lastActionSince = 0;
     lastUp = lastDown = lastStop = false;
+    Serial.println(String("doubleTimeout"));
   }
 
   if(!stopPressed && upCurrent && millis() - upSince >= delayBoth && downSince == 0)
