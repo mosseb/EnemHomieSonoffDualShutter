@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-# Usage :
-# OTA Update script :
-# ====================
-# python scripts/ota_updater.py -l IP_MOSQUITTO -u MQTT_USER -d MQTT_PASSWORD -t "homie/" -i "NODE_NAME" .pioenvs/esp8285/firmware.bin
-#
 
 from __future__ import division, print_function
 import paho.mqtt.client as mqtt

@@ -23,7 +23,7 @@ unsigned int buttonLockDuration = 0;
 unsigned long publishingButtonLockRemaining = ULONG_MAX;
 unsigned long lastPublishButtonLock = 0;
 
-EnemDoubleButton button = EnemDoubleButton(SHUTTER_PIN_BUTTON_UP, SHUTTER_PIN_BUTTON_DOWN, 60, 100, 1000);
+EnemDoubleButton button = EnemDoubleButton(SHUTTER_PIN_BUTTON_UP, SHUTTER_PIN_BUTTON_DOWN, 30, 50, 1000);
 Shutters shutter;
 
 byte publishingLevel = ShuttersInternal::LEVEL_NONE;
@@ -58,18 +58,21 @@ bool voletLevelHandler(const HomieRange& range, const String& value)
 bool voletUpCommandHandler(const HomieRange& range, const String& value)
 {
   shutter.setLevel(0);
+  voletNode.setProperty("upCommand").setRetained(false).send("false");
   return true;
 }
 
 bool voletDownCommandHandler(const HomieRange& range, const String& value)
 {
   shutter.setLevel(100);
+  voletNode.setProperty("downCommand").setRetained(false).send("false");
   return true;
 }
 
 bool voletStopCommandHandler(const HomieRange& range, const String& value)
 {
   shutter.stop();
+  voletNode.setProperty("stopCommand").setRetained(false).send("false");
   return true;
 }
 
@@ -285,7 +288,7 @@ void setup()
   rebootCount++;
   writeRebootCount();
 
-  Homie_setFirmware("EnemHomieSonoffDualShutter", "1.1.0");
+  Homie_setFirmware("EnemHomieSonoffDualShutter", "1.1.1");
   Homie.setLoopFunction(loopHandler);
   Homie.setLedPin(LED_PIN_STATUS, LOW).setResetTrigger(BUTTON_PIN_CASE, LOW, 5000);
   Homie.onEvent(onHomieEvent);
