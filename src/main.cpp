@@ -58,21 +58,18 @@ bool voletLevelHandler(const HomieRange& range, const String& value)
 bool voletUpCommandHandler(const HomieRange& range, const String& value)
 {
   shutter.setLevel(0);
-  voletNode.setProperty("upCommand").setRetained(false).send("false");
   return true;
 }
 
 bool voletDownCommandHandler(const HomieRange& range, const String& value)
 {
   shutter.setLevel(100);
-  voletNode.setProperty("downCommand").setRetained(false).send("false");
   return true;
 }
 
 bool voletStopCommandHandler(const HomieRange& range, const String& value)
 {
   shutter.stop();
-  voletNode.setProperty("stopCommand").setRetained(false).send("false");
   return true;
 }
 
@@ -248,6 +245,7 @@ void upDoublePressed(EnemDoubleButton* button)
 {
   if(buttonLockStartTime != 0) { return; }
   voletNode.setProperty("upCommand").setRetained(false).send("true");
+  voletNode.setProperty("upCommand").setRetained(false).send("false");
   voletNode.setProperty("log").send("upDoublePressed");
 }
 
@@ -255,6 +253,7 @@ void downDoublePressed(EnemDoubleButton* button)
 {
   if(buttonLockStartTime != 0) { return; }
   voletNode.setProperty("downCommand").setRetained(false).send("true");
+  voletNode.setProperty("downCommand").setRetained(false).send("false");
   voletNode.setProperty("log").send("downDoublePressed");
 }
 
@@ -262,6 +261,7 @@ void stopDoublePressed(EnemDoubleButton* button)
 {
   if(buttonLockStartTime != 0) { return; }
   voletNode.setProperty("stopCommand").setRetained(false).send("true");
+  voletNode.setProperty("stopCommand").setRetained(false).send("false");
   voletNode.setProperty("log").send("stopDoublePressed");
 }
 
