@@ -10,8 +10,8 @@ const int SHUTTER_PIN_RELAY_DOWN = 12;
 const int SHUTTER_PIN_RELAY_UP = 5;
 const int BUTTON_PIN_CASE = 10;
 const int LED_PIN_STATUS = 13;
-const int SHUTTER_UPCOURSETIME_SEC = 120000;
-const int SHUTTER_DOWNCOURSETIME_SEC = 120000;
+const int SHUTTER_COURSETIME_MIN = 5000;
+const int SHUTTER_COURSETIME_MAX = 120000;
 const float SHUTTER_CALIBRATION_RATIO = 0.1;
 
 uint8_t rebootCount = 0;
@@ -27,10 +27,10 @@ EnemDoubleButton button = EnemDoubleButton(SHUTTER_PIN_BUTTON_UP, SHUTTER_PIN_BU
 Shutters shutter;
 
 byte publishingLevel = ShuttersInternal::LEVEL_NONE;
-unsigned long publishingUpCourseTime = 0;
-unsigned long publishingDownCourseTime = 0;
 
 HomieNode voletNode("shutters", "shutters", "shutters");
+HomieSetting<long> upCourseTimeSetting("upCourseTime", "upCourseTime");
+HomieSetting<long> downCourseTimeSetting("downCourseTime", "downCourseTime");
 
 bool positiveIntTryParse(const String& value, unsigned long& out)
 {
@@ -96,48 +96,6 @@ bool buttonLockCommandHandler(const HomieRange& range, const String& value)
   return true;
 }
 
-bool voletupCourseTimeHandler(const HomieRange& range, const String& value)
-{
-  unsigned long upCourseTime;
-  if(!positiveIntTryParse(value, upCourseTime)) { return false; }
-
-  //Garde fou : plus d'une minute = foutage de gueule, pas moins de 5 secondes, = foutage de gueule aussi !
-  if(upCourseTime > SHUTTER_UPCOURSETIME_SEC) { return false; }
-  if(upCourseTime < 5000) { return false; }
-
-  unsigned long downCourseTime = shutter.getDownCourseTime();
-
-  shutter
-    .reset()
-    .setCourseTime(upCourseTime, downCourseTime)
-    .begin();
-
-  publishingUpCourseTime = upCourseTime;
-
-  return true;
-}
-
-bool voletdownCourseTimeHandler(const HomieRange& range, const String& value)
-{
-  unsigned long downCourseTime;
-  if(!positiveIntTryParse(value, downCourseTime)) { return false; }
-
-  //Garde fou : plus d'une minute = foutage de gueule, pas moins de 5 secondes, = foutage de gueule aussi !
-  if(downCourseTime > SHUTTER_DOWNCOURSETIME_SEC) { return false; }
-  if(downCourseTime < 5000) { return false; }
-
-  unsigned long upCourseTime = shutter.getUpCourseTime();
-
-  shutter
-    .reset()
-    .setCourseTime(upCourseTime, downCourseTime)
-    .begin();
-
-  publishingDownCourseTime = downCourseTime;
-
-  return true;
-}
-
 void onShuttersLevelReached(Shutters* shutter, byte level) {
   Serial.print("Shutters at ");
   Serial.print(level);
@@ -166,23 +124,6 @@ void shuttersOperationHandler(Shutters* shutter, ShuttersOperation operation) {
   }
 }
 
-void readInEeprom(char* dest, byte length) {
-  int offset = 0;
-
-  for (byte i = 0; i < length; i++) {
-    dest[i] = EEPROM.read(offset + i);
-  }
-}
-
-void shuttersWriteStateHandler(Shutters* shutter, const char* state, byte length) {
-  int offset = 0;
-
-  for (byte i = 0; i < length; i++) {
-    EEPROM.write(offset + i, state[i]);
-    EEPROM.commit();
-  }
-}
-
 void readRebootCount() {
   int offset = shutter.getStateLength();
   rebootCount = EEPROM.read(offset);
@@ -199,18 +140,6 @@ void loopHandler() {
   {
     voletNode.setProperty("level").send(String(publishingLevel));
     publishingLevel = ShuttersInternal::LEVEL_NONE;
-  }
-
-  if(publishingUpCourseTime != 0)
-  {
-    voletNode.setProperty("upCourseTime").send(String(publishingUpCourseTime));
-    publishingUpCourseTime = 0;
-  }
-
-  if(publishingDownCourseTime != 0)
-  {
-    voletNode.setProperty("downCourseTime").send(String(publishingDownCourseTime));
-    publishingDownCourseTime = 0;
   }
 
   if(publishingButtonLockRemaining != ULONG_MAX)
@@ -282,7 +211,6 @@ void setup()
   Serial.begin(115200);
   delay(100);
   Serial << endl << endl;
-  EEPROM.begin(512);
 
   readRebootCount();
   rebootCount++;
@@ -292,44 +220,30 @@ void setup()
   Homie.setLoopFunction(loopHandler);
   Homie.setLedPin(LED_PIN_STATUS, LOW).setResetTrigger(BUTTON_PIN_CASE, LOW, 5000);
   Homie.onEvent(onHomieEvent);
+
+  auto validator = [] (long candidate) {
+    return (candidate >= SHUTTER_COURSETIME_MIN) && (candidate <= SHUTTER_COURSETIME_MAX);
+  };
+
+  upCourseTimeSetting.setDefaultValue(SHUTTER_COURSETIME_MAX).setValidator(validator);
+  downCourseTimeSetting.setDefaultValue(SHUTTER_COURSETIME_MAX).setValidator(validator);
+
   Homie.setup();
 
   voletNode.advertise("level").settable(voletLevelHandler);
-  voletNode.advertise("upCourseTime").settable(voletupCourseTimeHandler);
-  voletNode.advertise("downCourseTime").settable(voletdownCourseTimeHandler);
   voletNode.advertise("upCommand").settable(voletUpCommandHandler);
   voletNode.advertise("downCommand").settable(voletDownCommandHandler);
   voletNode.advertise("stopCommand").settable(voletStopCommandHandler);
   voletNode.advertise("buttonLock").settable(buttonLockCommandHandler);
 
-  char storedShuttersState[shutter.getStateLength()];
-  readInEeprom(storedShuttersState, shutter.getStateLength());
+  auto state = ShuttersInternal::StoredState{};
+  state.setDownCourseTime(downCourseTimeSetting.get());
+  state.setUpCourseTime(upCourseTimeSetting.get());
+  state.setLevel(ShuttersInternal::LEVEL_NONE);
 
   shutter
     .setOperationHandler(shuttersOperationHandler)
-    .setWriteStateHandler(shuttersWriteStateHandler)
-    .restoreState(storedShuttersState);
-
-  if(shutter.getUpCourseTime() == 0)
-  {
-    publishingUpCourseTime = SHUTTER_UPCOURSETIME_SEC;
-  }
-  else
-  {
-    publishingUpCourseTime = shutter.getUpCourseTime();
-  }
-
-  if(shutter.getDownCourseTime() == 0)
-  {
-    publishingDownCourseTime = SHUTTER_DOWNCOURSETIME_SEC;
-  }
-  else
-  {
-    publishingDownCourseTime = shutter.getDownCourseTime();
-  }
-
-  shutter
-    .setCourseTime(publishingUpCourseTime, publishingDownCourseTime)
+    .restoreState(state.getState())
     .setCalibrationRatio(SHUTTER_CALIBRATION_RATIO)
     .onLevelReached(onShuttersLevelReached)
     .begin();
