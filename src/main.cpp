@@ -1,6 +1,5 @@
 #include <Homie.h>
 #include <Shutters.h>
-#include <EEPROM.h>
 
 #include <EnemDoubleButton.hpp>
 
