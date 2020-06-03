@@ -1,5 +1,6 @@
 #include <Homie.h>
 #include <Shutters.h>
+#include <EEPROM.h>
 
 #include <EnemDoubleButton.hpp>
 
@@ -25,7 +26,7 @@ unsigned long lastPublishButtonLock = 0;
 EnemDoubleButton button = EnemDoubleButton(SHUTTER_PIN_BUTTON_UP, SHUTTER_PIN_BUTTON_DOWN, 30, 50, 1000);
 Shutters shutter;
 
-byte publishingLevel = ShuttersInternal::LEVEL_NONE;
+byte publishingLevel = 101;
 
 HomieNode voletNode("shutters", "shutters", "shutters");
 HomieSetting<long> upCourseTimeSetting("upCourseTime", "upCourseTime");
@@ -51,6 +52,14 @@ bool voletLevelHandler(const HomieRange& range, const String& value)
 
   shutter.setLevel(level);
 
+  return true;
+}
+
+bool resetHandler(const HomieRange& range, const String& value)
+{
+  Serial.println("Reboot requested !");
+  Serial.flush();
+  ESP.restart();
   return true;
 }
 
@@ -124,21 +133,19 @@ void shuttersOperationHandler(Shutters* shutter, ShuttersOperation operation) {
 }
 
 void readRebootCount() {
-  int offset = shutter.getStateLength();
-  rebootCount = EEPROM.read(offset);
+  rebootCount = EEPROM.read(0);
 }
 
 void writeRebootCount() {
-  int offset = shutter.getStateLength();
-  EEPROM.write(offset, rebootCount);
+  EEPROM.write(0, rebootCount);
   EEPROM.commit();
 }
 
 void loopHandler() {
-  if(publishingLevel != ShuttersInternal::LEVEL_NONE)
+  if(publishingLevel != 101)
   {
     voletNode.setProperty("level").send(String(publishingLevel));
-    publishingLevel = ShuttersInternal::LEVEL_NONE;
+    publishingLevel = 101;
   }
 
   if(publishingButtonLockRemaining != ULONG_MAX)
@@ -205,17 +212,21 @@ void onHomieEvent(const HomieEvent& event) {
   }
 }
 
+void shuttersWriteStateHandler(Shutters* shutter, const char* state, byte length) {
+}
+
 void setup()
 {
   Serial.begin(115200);
   delay(100);
   Serial << endl << endl;
+  EEPROM.begin(4);
 
   readRebootCount();
   rebootCount++;
   writeRebootCount();
 
-  Homie_setFirmware("EnemHomieSonoffDualShutter", "1.1.1");
+  Homie_setFirmware("EnemHomieSonoffDualShutter", "1.1.2");
   Homie.setLoopFunction(loopHandler);
   Homie.setLedPin(LED_PIN_STATUS, LOW).setResetTrigger(BUTTON_PIN_CASE, LOW, 5000);
   Homie.onEvent(onHomieEvent);
@@ -224,8 +235,8 @@ void setup()
     return (candidate >= SHUTTER_COURSETIME_MIN) && (candidate <= SHUTTER_COURSETIME_MAX);
   };
 
-  upCourseTimeSetting.setDefaultValue(SHUTTER_COURSETIME_MAX).setValidator(validator);
-  downCourseTimeSetting.setDefaultValue(SHUTTER_COURSETIME_MAX).setValidator(validator);
+  upCourseTimeSetting.setValidator(validator);
+  downCourseTimeSetting.setValidator(validator);
 
   Homie.setup();
 
@@ -234,6 +245,7 @@ void setup()
   voletNode.advertise("downCommand").settable(voletDownCommandHandler);
   voletNode.advertise("stopCommand").settable(voletStopCommandHandler);
   voletNode.advertise("buttonLock").settable(buttonLockCommandHandler);
+  voletNode.advertise("reset").settable(resetHandler);
 
   auto state = ShuttersInternal::StoredState{};
   state.setDownCourseTime(downCourseTimeSetting.get());
@@ -242,6 +254,7 @@ void setup()
 
   shutter
     .setOperationHandler(shuttersOperationHandler)
+    .setWriteStateHandler(shuttersWriteStateHandler)
     .restoreState(state.getState())
     .setCalibrationRatio(SHUTTER_CALIBRATION_RATIO)
     .onLevelReached(onShuttersLevelReached)
