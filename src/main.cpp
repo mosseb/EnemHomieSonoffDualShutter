@@ -226,7 +226,7 @@ void setup()
   rebootCount++;
   writeRebootCount();
 
-  Homie_setFirmware("EnemHomieSonoffDualShutter", "1.1.2");
+  Homie_setFirmware("EnemHomieSonoffDualShutter", "1.2.0");
   Homie.setLoopFunction(loopHandler);
   Homie.setLedPin(LED_PIN_STATUS, LOW).setResetTrigger(BUTTON_PIN_CASE, LOW, 5000);
   Homie.onEvent(onHomieEvent);
@@ -255,9 +255,10 @@ void setup()
   shutter
     .setOperationHandler(shuttersOperationHandler)
     .setWriteStateHandler(shuttersWriteStateHandler)
-    .restoreState(state.getState())
-    .setCalibrationRatio(SHUTTER_CALIBRATION_RATIO)
     .onLevelReached(onShuttersLevelReached)
+    .restoreState(state.getState())
+    .setCourseTime(upCourseTimeSetting.get(), downCourseTimeSetting.get())
+    .setCalibrationRatio(SHUTTER_CALIBRATION_RATIO)
     .begin();
 
   button.setup();
