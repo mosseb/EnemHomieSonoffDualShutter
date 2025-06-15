@@ -15,8 +15,9 @@ const int SHUTTER_COURSETIME_MAX = 120000;
 const float SHUTTER_CALIBRATION_RATIO = 0.1;
 
 uint8_t rebootCount = 0;
+bool rebootIncremented = false;
 unsigned long disconnectedTime = 0;
-unsigned long const maxDisconnectedTime = 20000;
+unsigned long const maxDisconnectedTimeUntilRebootIncr = 10000;
 
 unsigned long buttonLockStartTime = 0;
 unsigned int buttonLockDuration = 0;
@@ -223,10 +224,8 @@ void setup()
   EEPROM.begin(4);
 
   readRebootCount();
-  rebootCount++;
-  writeRebootCount();
 
-  Homie_setFirmware("EnemHomieSonoffDualShutter", "1.2.0");
+  Homie_setFirmware("EnemHomieSonoffDualShutter", "1.3.0");
   Homie.setLoopFunction(loopHandler);
   Homie.setLedPin(LED_PIN_STATUS, LOW).setResetTrigger(BUTTON_PIN_CASE, LOW, 5000);
   Homie.onEvent(onHomieEvent);
@@ -300,35 +299,52 @@ void HomieIndependentLoop()
   }
 }
 
-void loop() {
-  Homie.loop();
-
-  if(rebootCount >= 3)
-  {
-    if(Homie.isConfigured())
-    {
-      if (Homie.isConnected())
-      {
-        disconnectedTime = 0;
-      }
-      else
-      {
-        if(disconnectedTime == 0)
-        {
-          disconnectedTime = millis();
-        }
-        else
-        {
-          if(millis() - disconnectedTime >= maxDisconnectedTime)
-          {
-            rebootCount = 0;
-            writeRebootCount();
-            Homie.reset();
-          }
-        }
-      }
-    }
+void checkResetNeeded() {
+  // Homie not even configured, should show the AP already
+  if(!Homie.isConfigured()) {
+    return;
   }
 
+  // Fully functionnal ! Go back to business
+  if (Homie.isConnected()) {
+    disconnectedTime = 0;
+    if(rebootCount != 0) {
+      rebootCount = 0;
+      writeRebootCount();
+    }
+    return;
+  }
+
+  // Homie is configured but not connected. This is when we probably want to have a reset
+
+  // If already incremented, do nothing but wait for device restart.
+  if(rebootIncremented) {
+    return;
+  }
+
+  // If reboot count reached 3, wipe !
+  if(rebootCount >= 3) {
+    rebootCount = 0;
+    writeRebootCount();
+    Homie.reset();
+  }
+
+  // Init the disconnectedTime
+  if(disconnectedTime == 0) {
+    disconnectedTime = millis();
+    return;
+  }
+
+  // Diconnected time reached the limit, increment and wait for a device restart
+  if(millis() - disconnectedTime >= maxDisconnectedTimeUntilRebootIncr) {
+    rebootCount++;
+    writeRebootCount();
+    rebootIncremented = true;
+  }
+}
+
+void loop() {
+  Homie.loop();
+  checkResetNeeded();
   HomieIndependentLoop();
 }
